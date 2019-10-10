@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<!-- TODO: [done?] tools bar, fix word count (don't count chars such as " - " or " & "') -->
+<!-- TODO: Add global document publishing -->
+<html>
+  <head>
+    <title>QuikEdit</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Ubuntu+Mono" rel="stylesheet">
+    <!-- JS Libraries -->
+    <script src="jszip.min.js"></script>
+    <script src="FileSaver.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/5.8.6/firebase.js"></script>
+    <!-- JQuery (used with the Dev Measure tool and sorting files) -->
+    <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <style>
+      @font-face {
+        font-family: "Vera Mono";
+        src: url(VeraMono.ttf);
+      }
+      * {
+        font-family: "Roboto Light", Helvetica, Arial;
+      }
+      body {
+        background-color: rgb(255, 255, 255);
+        padding: 0px;
+        margin: 0px;
+      }
+      h1 {
+        margin: 0px;
+        font-size: 24pt;
+      }
+      button {
+        background-color: rgb(255, 255, 255);
+        height: 40px;
+        border: none;
+        border-radius: 40px;
+        padding: 0px 20px 0px 20px;
+      }
+      #header {
+        position: sticky;
+        top: 0px;
+        background-color: rgb(50, 50, 50);
+        width: calc(100% - (100px - 48pt));
+        font-family: "Roboto Black", Helvetica, Arial;
+        color: rgb(255, 255, 255);
+        margin: 0px;
+        padding: calc(50px - 24pt);
+        z-index: 5; /* TODO: figure out what this should be */
+      }
+      #navbar {
+        float: right;
+      }
+      #download {
+        display: none;
+        margin-top: 10px;
+      }
+      #tools {
+        display: inline-block;
+      }
+      #search {
+        width: 300px;
+        border: none;
+        font-size: 16pt;
+        margin: 0px 10px 0px 10px;
+        padding: 5px 15px 5px 15px;
+        resize: none;
+      }
+      #search:focus {
+        outline: none;
+      }
+      #newFolder {
+        position: relative;
+        top: -13px;
+        margin-right: 10px;
+      }
+      #newFolder:focus {
+        outline: none;
+      }
+      #newFile {
+        position: relative;
+        top: -13px;
+        margin-right: 10px;
+      }
+      #newFile:focus {
+        outline: none;
+      }
+      #login {
+        float: right;
+        position: relative;
+        top: -2px;
+        margin-left: 5px;
+      }
+      #login:focus {
+        outline: none;
+      }
+      #logout {
+        float: right;
+        display: none;
+        position: relative;
+        top: -2px;
+        margin-left: 5px;
+      }
+      #logout:focus {
+        outline: none;
+      }
+      #downloadProject {
+        position: relative;
+        top: -13px;
+      }
+      #downloadProject:focus {
+        outline: none;
+      }
+      #content {
+        padding: 50px 25% 50px 25%;
+      }
+      #files {
+        border: 1px solid rgb(200, 200, 200);
+        border-radius: 10px;
+        padding: 20px 0px 8px 0px;
+      }
+      #files-container {
+        display: inline;
+      }
+      .icon-container {
+        display: inline;
+      }
+      .icon-folder {
+        display: inline-block;
+        background-color: rgb(200, 200, 200);
+        width: 25px;
+        height: 20px;
+        border: none;
+        border-radius: 5px;
+        margin-right: 5px;
+      }
+      .icon-folder-inner {
+        background-color: rgb(250, 250, 250);
+        width: 10px;
+        height: 4px;
+        border: none;
+        border-radius: 5px 0px 5px 0px;
+        margin: 1px;
+      }
+      .icon-file {
+        display: inline-block;
+        background-color: rgb(200, 200, 200);
+        width: 17px;
+        height: 20px;
+        border: none;
+        border-radius: 5px;
+        margin: 0px 9px 0px 4px;
+      }
+      .icon-file-inner {
+        background-color: rgb(250, 250, 250);
+        width: 15px;
+        height: 18px;
+        border: none;
+        border-radius: 5px;
+        margin: 1px;
+      }
+      .icon-trash-container {
+        float: right;
+        position: relative;
+        top: -4px;
+        background-color: rgba(0, 0, 0, 0);
+        padding: 9px 0px 0px 0px;
+      }
+      .icon-trash-container:hover {
+        background-color: rgba(235, 235, 235);
+      }
+      .icon-trash-container:hover .icon-trash-lid-bottom, .icon-trash-container:hover .icon-trash-lid-top {
+        transform: translateY(-1px) rotate(-10deg);
+      }
+      .icon-trash {
+        position: relative;
+        display: inline-block;
+        background-color: rgb(200, 200, 200);
+        width: 17px;
+        height: 14px;
+        border: none;
+        border-radius: 0px 0px 5px 5px;
+        margin: 0px 5px 0px 4px;
+      }
+      .icon-trash-top {
+        background-color: rgb(200, 200, 200);
+        position: relative;
+        top: -2px;
+        left: -1px;
+        width: 19px;
+        height: 2px;
+        border: none;
+        border-radius: 5px;
+      }
+      .icon-trash-lid-top {
+        background-color: rgb(200, 200, 200);
+        position: relative;
+        top: -9px;
+        left: 5px;
+        width: 5px;
+        height: 1px;
+        border: none;
+        border-radius: 5px;
+      }
+      .icon-trash-lid-bottom {
+        background-color: rgb(200, 200, 200);
+        position: relative;
+        top: -9px;
+        left: -1px;
+        width: 19px;
+        height: 3px;
+        border: none;
+        border-radius: 5px;
+      }
+      .icon-trash-line {
+        float: left;
+        background-color: rgb(255, 255, 255);
+        position: relative;
+        top: -5px;
+        width: 1px;
+        height: 9px;
+        border: none;
+        border-radius: 5px;
+      }
+      .icon-trash-line-1 {
+        left: 4px;
+      }
+      .icon-trash-line-2 {
+        left: 7px;
+      }
+      .icon-trash-line-3 {
+        left: 10px;
+      }
+      .icon-edit-container {
+        float: right;
+        position: relative;
+        top: -4px;
+        background-color: rgba(0, 0, 0, 0);
+        padding: 10px 0px 0px 0px;
+        margin: 0px 10px 0px 10px;
+        width: 20px;
+      }
+      .icon-edit-container:hover {
+        background-color: rgba(235, 235, 235);
+      }
+      .icon-edit-container-inner {
+        padding-left: 6px;
+        height: 17px;
+        transform: rotate(20deg);
+      }
+      .icon-edit-main {
+        position: relative;
+        top: -6px;
+        background-color: rgb(200, 200, 200);
+        width: 4px;
+        height: 13px;
+      }
+      .icon-edit-end {
+        position: relative;
+        top: -7px;
+        background-color: rgb(200, 200, 200);
+        width: 4px;
+        height: 3px;
+      }
+      .icon-edit-tip {
+        position: relative;
+        top: -5px;
+        width: 0px;
+        height: 0px;
+        border-left: 2px solid rgba(0, 0, 0, 0);
+        border-right: 2px solid rgba(0, 0, 0, 0);
+        border-top: 4px solid rgb(200, 200, 200);
+      }
+      .extension {
+        float: right;
+        position: relative;
+        top: 3px;
+        color: rgb(200, 200, 200);
+        margin-right: 5px;
+      }
+      .file {
+        background-color: rgb(255, 255, 255);
+        padding: 0px 20px 20px 20px;
+      }
+      .file:hover {
+        background-color: rgb(240, 240, 240);
+      }
+      #line-count {
+        background-color: rgb(250, 250, 250);
+        line-height: 15pt;
+        float: left;
+        text-align: right;
+        font-family: "Vera Mono", "Ubuntu Mono", monospace;
+        width: 49px;
+        font-size: 13pt;
+        border-color: rgb(200, 200, 200);
+        padding: 3px 2px 2px 2px;
+        margin: 0px 0px 0px 20px;
+      }
+      #editor {
+        line-height: 15pt;
+        float: right;
+        font-family: "Vera Mono", "Ubuntu Mono", monospace;
+        width: calc(100% - 99px);
+        font-size: 13pt;
+        border-color: rgb(200, 200, 200);
+        padding: 2px;
+        margin: 0px 20px 0px 0px;
+        resize: none;
+      }
+      #editor:focus {
+          outline: none;
+          border-color: rgb(150, 150, 150);
+      }
+      #editor-tools {
+        float: right;
+        margin-right: 20px;
+        color: rgb(50, 150, 200);
+        position: relative;
+        top: 6px;
+      }
+      #editor-tools-popup {
+        display: none;
+        background-color: rgb(255, 255, 255);
+        position: fixed;
+        left: 25%;
+        right: 25%;
+        width: calc(50% - 20px);
+        top: 25%;
+        bottom: 25%;
+        height: calc(50% - 40px);
+        border-radius: 10px;
+        box-shadow: 0px 0px 10px rgba(200, 200, 200, 0.5);
+        padding: 20px 0px 20px 20px;
+      }
+      #editor-tools-popup-header {
+        font-size: 20pt;
+        font-family: "Roboto Medium", Helvetica, Arial;
+        margin-bottom: 20px;
+        padding-right: 20px;
+      }
+      #editor-tools-popup-x {
+        float: right;
+      }
+      .editor-tools-popup-button {
+        background-color: rgb(250, 250, 250);
+        width: calc(50% - 15px);
+        margin: 0px 10px 10px 0px;
+        height: 100px;
+        border-radius: 50px;
+        font-size: 16pt;
+      }
+      .editor-tools-popup-button:focus {
+        outline: none;
+      }
+      .clear {
+        clear: both;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="header">
+      <div id="navbar">
+        <div id="download">
+          <button id="downloadProject" onclick="downloadProject()">Download Project</button>
+        </div> <!-- #download -->
+        <div id="tools">
+          <textarea id="search" rows="1" placeholder="Search"></textarea>
+          <button id="newFolder" onclick="newFolder()">New Folder</button>
+          <button id="newFile" onclick="newFile()">New File</button>
+          <button id="login" onclick="login()">Login</button>
+          <button id="logout" onclick="logout()">Logout</button>
+        </div>
+      </div> <!-- #tools -->
+      <h1>QuikEdit</h1>
+    </div> <!-- #header -->
+
+    <div id="content">
+      <noscript>JavaScript is required for this site to work.</noscript>
+      <div id="path" style="padding-left: 20px; margin-bottom: 10px;"></div>
+      <div id="files"></div>
+      <div id="editor-tools-popup"></div>
+    </div>
+
+    <script>
+      var path = [];
+      if (localStorage.getItem("quikFiles") === null) {
+        localStorage.setItem("quikFiles", JSON.stringify([{
+          name: "Example Project",
+          type: "folder",
+          contents: [{
+            name: "Example",
+            type: "file",
+            extension: "txt",
+            contents: "This is an example text file.",
+            saved: new Date().getTime()
+          }]
+        }]));
+      }
+      var files = JSON.parse(localStorage.getItem("quikFiles"));
+      var open = true;
+      var currentOpenedFile = -1;
+      // Firebase Setup
+      var config = {
+        apiKey: "AIzaSyC8da-GOEnQmfdw1vDGKqdMe72IRPLR-84",
+        authDomain: "quikedit.firebaseapp.com",
+        databaseURL: "https://quikedit.firebaseio.com",
+        projectId: "quikedit",
+        storageBucket: "quikedit.appspot.com",
+        messagingSenderId: "210618888710"
+      };
+      firebase.initializeApp(config);
+      var database = firebase.database();
+      var ref = database.ref("data");
+      var public = database.ref("public");
+
+      if (localStorage.getItem("account") === null) {
+        localStorage.setItem("account", "");
+      }
+      if (localStorage.getItem("account") !== "") {
+        var username = localStorage.getItem("account");
+        ref.once("value", function(data) {
+          var d = data.val();
+          var success = false;
+          if (JSON.stringify(files) !== d[username].files) { // Files don't match, ask if they should be merged
+            switch (prompt("The files on your device and the ones stored on your account don't match.\n\nIf you want the files on your device to overwrite the files on your account, type in \"DEVICE\".\n\nIf you want the files on your account to overwrite the ones on your device, type in \"ACCOUNT\".\n\nPress Cancel to prevent any overwriting.")) {
+              case "DEVICE": // Set files on their account to the ones stored locally
+                if (confirm("Are you sure you want to overwrite the files on your account?\n\nThis action cannot be undone.")) {
+                  success = true;
+                  account = username;
+                  saveFiles();
+                }
+              break;
+              case "ACCOUNT": // Set the files stored locally to the ones on their account
+                if (confirm("Are you sure you want to overwrite the files on your device?\n\nThis action cannot be undone.")) {
+                  success = true;
+                  account = username;
+                  files = JSON.parse(d[username].files);
+                  saveFiles();
+                  loadFiles(path);
+                }
+              break;
+            }
+          } else {
+            account = username;
+            success = true;
+          }
+          if (success) {
+            document.getElementById("login").style.display = "none"; // Hide Login button
+            document.getElementById("logout").style.display = "block"; // Show Logout button
+          }
+        });
+      }
+
+      var account = ""; // username of the account
+
+      function login() {
+        var username = prompt("Enter your username.");
+        ref.once("value", function(data) {
+          var d = data.val();
+          if (d !== null && d[username] !== undefined) { // Account exists; login
+            if (window.btoa(prompt("Enter your password.")) === d[username].password) {
+              var success = false;
+              if (JSON.stringify(files) !== d[username].files) { // Files don't match, ask if they should be merged
+                switch (prompt("The files on your device and the ones stored on your account don't match.\n\nIf you want the files on your device to overwrite the files on your account, type in \"DEVICE\".\n\nIf you want the files on your account to overwrite the ones on your device, type in \"ACCOUNT\".\n\nPress Cancel to prevent any overwriting.")) {
+                  case "DEVICE": // Set files on their account to the ones stored locally
+                    if (confirm("Are you sure you want to overwrite the files on your account?\n\nThis action cannot be undone.")) {
+                      success = true;
+                      account = username;
+                      saveFiles();
+                    }
+                  break;
+                  case "ACCOUNT": // Set the files stored locally to the ones on their account
+                    if (confirm("Are you sure you want to overwrite the files on your device?\n\nThis action cannot be undone.")) {
+                      success = true;
+                      account = username;
+                      files = JSON.parse(d[username].files);
+                      saveFiles();
+                      loadFiles(path);
+                    }
+                  break;
+                }
+              } else {
+                account = username;
+                success = true;
+              }
+              if (success) {
+                localStorage.setItem("account", account);
+                document.getElementById("login").style.display = "none"; // Hide Login button
+                document.getElementById("logout").style.display = "block"; // Show Logout button
+                // document.getElementById("newFile").style.marginRight = "0px"; // ^
+                toolFunctions.textWrapping = d[account].settings.textWrapping;
+              }
+            } else { // Invalid password
+              alert("[ERROR] Invalid password!");
+            }
+          } else if (username.trim() !== "") { // Account does not exist; ask if they want to create the account
+            if (confirm("An account under that username does not exist. Would you like to create it?")) {
+              var chars = (" abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@#$%^&*()-_=+[]\{}|;:'\",./<>?`~").split("");
+              var valid = false;
+              while (!valid) {
+                var password = prompt("Enter the password that you would like to use.").split("");
+                if (password.length < 4) { // Password is too short
+                  alert("[ERROR] Passwords must be at least 4 characters long.");
+                } else if (password.length > 250) { // Password is WAY too long
+                  alert("[ERROR] Passwords are limited to 250 characters to save database storage.");
+                } else {
+                  if (password.filter(v => { return ~chars.indexOf(v); }).length !== password.length) { // Invalid character was used
+                    alert("[ERROR] An invalid character was used. Try to only use English letters, numbers, and basic symbols.");
+                  } else { // A valid password was entered
+                    ref.child(username).child("password").set(window.btoa(password.join(""))); // Set the account's password
+                    ref.child(username).child("files").set(JSON.stringify(files)); // Set the account's files
+                    ref.child(username).child("settings").set({ textWrapping: false }); // Set the account's settings
+                    document.getElementById("login").style.display = "none"; // Fix styling
+                    document.getElementById("newFile").style.marginRight = "0px"; // ^
+                    valid = true; // Breaks out of the while loop
+                  }
+                }
+                password = ""; // Reset the locally stored password, just in case
+              }
+            }
+          }
+        });
+      }
+      function logout() {
+        account = "";
+        localStorage.setItem("account", "");
+        document.getElementById("login").style.display = "block"; // Show Login button
+        document.getElementById("logout").style.display = "none"; // Hide Logout button
+      }
+      function loadFiles(path) {
+        // Adds the title:
+        var partial_path = [];
+        for (var i = 0; i < path.length - 1; i++) {
+          partial_path.push(path[i]);
+        }
+        var curFiles = getFile(partial_path.splice(0, path.length - 1));
+        document.getElementById("files").innerHTML = "<h2 style='padding-left: 20px;'>" + (path.length !== 0 ? curFiles[path[path.length - 1]].name : "Files") + "</h2>";
+        if (path.length !== 0) {
+          curFiles = curFiles[path[path.length - 1]].contents;
+        }
+        // Adds the files:
+        document.getElementById("files").innerHTML += "<div id='files-container'></div>";
+        for (var i = 0; i < curFiles.length; i++) {
+          document.getElementById("files-container").innerHTML += "<div class='file' onclick='openPath(" + i + ");' id='file-" + i + "'><div class='icon-" + curFiles[i].type + "'><div class='icon-" + curFiles[i].type + "-inner'></div></div><div style='display: inline; position: relative; top: -3px;'>" + curFiles[i].name + "</div><div class='icon-container'><div class='icon-trash-container' onclick='deletePath(" + i + ")'><div class='icon-trash'><div class='icon-trash-top'></div><div class='icon-trash-lid-top'></div><div class='icon-trash-lid-bottom'></div><div class='icon-trash-line-container'><div class='icon-trash-line icon-trash-line-1'></div><div class='icon-trash-line icon-trash-line-2'></div><div class='icon-trash-line icon-trash-line-3'></div></div></div></div><div class='icon-edit-container' onclick='editPath(" + i +")'><div class='icon-edit-container-inner'><div class='icon-edit-end'></div><div class='icon-edit-main'></div><div class='icon-edit-tip'></div></div></div></div><div class='extension'>" + (curFiles[i].extension ? curFiles[i].extension : "folder") + "</div><div class='file-cover'></div></div>";
+        }
+        // Makes the files sortable:
+        $("#files-container").sortable({
+          update: function(e, ui) {
+
+
+          },
+          stop: function(e, ui) {
+            var moved = false;
+            // Drop into folder:
+            var f = document.getElementById("files-container").childNodes; // might have to do with position of this; maybe don't use? use ---ui.item[0].parentNode.childNodes instead??
+            for (var i = 0; i < f.length; i++) {
+              // Number(ui.item[0].id.split("-")[1]) is the number of the file being dragged
+              if (i !== Number(ui.item[0].id.split("-")[1])) {
+                console.log(ui.item[0].parentNode.childNodes[i]);
+                if (curFiles[i].type === "folder" && e.clientX >= f[i].offsetLeft && e.clientY >= f[i].offsetTop && e.clientX <= f[i].offsetLeft + f[i].offsetWidth && e.clientY <= f[i].offsetTop + f[i].offsetHeight) {
+                  curFiles[i].contents.splice(0, 0, curFiles[Number(ui.item[0].id.split("-")[1])]);
+                  curFiles.splice(Number(ui.item[0].id.split("-")[1]), 1);
+                  if (Number(ui.item[0].id.split("-")[1]) < i) {
+                    i--;
+                  }
+                  path.push(i);
+                  saveFiles();
+                  loadFiles(path);
+                  moved = true;
+                  break;
+                }
+              }
+            }
+
+            // Manage files that have been moved
+
+            if (!moved) {
+              var f = document.getElementById("files-container").childNodes;
+              var temp_files = [];
+              for (var i = 0; i < f.length; i++) {
+                temp_files.push(curFiles[Number(f[i].id.split("-")[1])]);
+              }
+              setFile(path, temp_files);
+              saveFiles();
+              loadFiles(path);
+            }
+
+            // Drop over path link:
+
+          }
+        });
+        // Adds the path at the top:
+        var p = getPath(path);
+        document.getElementById("path").innerHTML = "";
+        for (var i = 0; i < p.length - 1; i++) {
+          document.getElementById("path").innerHTML += "<h3 style='display: inline; color: rgb(50, 150, 200);' onclick='back(" + i + ")'>" + p[i] + "</h3><h3 style='display: inline;'>&nbsp/&nbsp</h3>";
+        }
+        document.getElementById("path").innerHTML += "<h3 style='display: inline;'>" + p[p.length - 1] + "</h3>";
+        // Adds the lines:
+        for (var i = 0; i < document.getElementsByClassName("file").length; i++) {
+          document.getElementsByClassName("file")[i].innerHTML = "<div style='background-color: rgb(200, 200, 200); height: 1px; margin: 0px 0px 20px 0px;'></div>" + document.getElementsByClassName("file")[i].innerHTML;
+        }
+        // Show / hide the download button
+        if (path.length !== 0) {
+          document.getElementById("download").style.display = "inline-block";
+        } else {
+          document.getElementById("download").style.display = "none";
+        }
+      }
+      function getPath(path) {
+        var p = ["Files"];
+        var curFiles = files;
+        if (path !== undefined) {
+          for (var i = 0; i < path.length; i++) {
+            p.push(curFiles[path[i]].name);
+            curFiles = curFiles[path[i]].contents;
+          }
+        }
+        return p;
+      }
+      function getFile(path) {
+        var curFiles = files;
+        if (path !== undefined) {
+          for (var i = 0; i < path.length; i++) {
+            curFiles = curFiles[path[i]].contents;
+          }
+        }
+        return curFiles;
+      }
+      function setFile(path, val) {
+        if (path.length === 0) {
+          files = val;
+        } else if (path !== undefined) {
+          var last_path = path.pop();
+          var temp = getFile(path)[last_path];
+          temp.contents = val;
+          path.push(last_path);
+        }
+      }
+      function saveFiles() {
+        localStorage.setItem("quikFiles", JSON.stringify(files)); // Save to their device
+        if (account !== "") { // Save to their account
+          ref.child(account).child("files").set(JSON.stringify(files));
+        }
+      }
+      loadFiles(path);
+      function newFolder() {
+        getFile(path).splice(0, 0, {
+          name: prompt("Enter a name for the folder.").trim() || "Untitled Folder",
+          type: "folder",
+          contents: []
+        });
+        loadFiles(path);
+        saveFiles();
+      }
+      function newFile() {
+        var fileName = prompt("Enter a name for the file.").trim() || "Untitled File";
+        fileName = fileName.split(".");
+        var fileExtension = fileName.length > 1 ? fileName[fileName.length - 1] : "txt";
+        if (fileName.length > 1) {
+          fileName = fileName.splice(0, fileName.length - 1).join(".");
+        }
+        getFile(path).splice(0, 0, {
+          name: fileName,
+          type: "file",
+          extension: fileExtension,
+          contents: "",
+          saved: new Date().getTime()
+        });
+        loadFiles(path);
+        saveFiles();
+      }
+      function back(i) {
+        // Reset things in case they were just in a file:
+        document.getElementById("tools").style.display = "inline-block";
+        document.getElementById("path").style.paddingLeft = "20px";
+        document.getElementById("path").style.marginBottom = "10px";
+        document.getElementById("content").style.padding = "50px 25% 50px 25%";
+        // Go back to what they clicked on:
+        path = path.splice(0, i);
+        if (path.length === 0) {
+          document.getElementById("download").style.display = "none";
+        }
+        loadFiles(path);
+      }
+      function openPath(i) {
+        if (open) {
+          switch(getFile(path)[i].type) {
+            case "folder":
+              path.push(i);
+              loadFiles(path);
+            break;
+            case "file":
+              openFile(path, i);
+            break;
+          }
+        }
+        open = true;
+      }
+      function openFile(path, i) {
+        // Fix up some things:
+        document.getElementById("download").style.display = "inline-block";
+        document.getElementById("tools").style.display = "none";
+        document.getElementById("path").style.paddingLeft = "calc(18.75% + 20px)";
+        document.getElementById("path").style.marginBottom = "10px";
+        var file = getFile(path)[i];
+        document.getElementById("files").innerHTML = "";
+        // Adds the path at the top:
+        var p = getPath(path);
+        document.getElementById("path").innerHTML = "";
+        for (var j = 0; j < p.length; j++) {
+          document.getElementById("path").innerHTML += "<h3 style='display: inline; color: rgb(50, 150, 200);' onclick='back(" + j + ")'>" + p[j] + "</h3><h3 style='display: inline;'>&nbsp/&nbsp</h3>";
+        }
+        document.getElementById("path").innerHTML += "<h3 style='display: inline;'>" + file.name + "</h3>";
+        // Adds the toolbar:
+        document.getElementById("files").innerHTML = "<h3 id='editor-tools' onclick='openTools()'>Tools</h3>";
+        // Adds the title:
+        document.getElementById("files").innerHTML += "<h2 style='padding-left: 20px;'>" + file.name + "</h2>";
+        // Adds the line:
+        document.getElementById("files").innerHTML += "<div style='background-color: rgb(200, 200, 200); height: 1px; margin: 0px 20px 20px 20px;'></div>";
+        // Adds the textarea:
+        document.getElementById("files").innerHTML += "<div id='line-count'></div><textarea id='editor' wrap='off' onkeypress='updateLines()' onkeyup='updateLines(); saveFile(" + i + ")'></textarea><div class='clear'></div>";
+        document.getElementById("editor").onkeydown = function(e) {
+          updateLines();
+          htmlAddOns(e, this);
+        }
+        document.getElementById("editor").value = file.contents;
+        // Change the padding of the content area:
+        document.getElementById("content").style.padding = "50px 10% 50px 10%";
+        updateLines(true);
+        toolFunctions.updateTextWrapping();
+        currentOpenedFile = i;
+      }
+      function moveFile(i) {
+        for (var j = 0; j < document.getElementsByClassName("icon-container").length; j++) {
+          document.getElementsByClassName("icon-container")[j].style.display = "none";
+        }
+        console.log(files);
+      }
+      function endMove() {
+        for (var i = 0; i < document.getElementsByClassName("icon-container").length; i++) {
+          document.getElementsByClassName("icon-container")[i].style.display = "inline";
+        }
+      }
+      var toolFunctions = {
+        textWrapping: false,
+        toggleTextWrapping: function() {
+          if (account !== "") {
+            toolFunctions.textWrapping = !toolFunctions.textWrapping;
+            ref.once("value", function(data) {
+              var d = data.val();
+              ref.child(account).child("settings").child("textWrapping").set(!d[account].settings.textWrapping);
+            });
+          } else {
+            toolFunctions.textWrapping = !toolFunctions.textWrapping;
+          }
+          toolFunctions.updateTextWrapping();
+        },
+        updateTextWrapping: function() {
+          if (document.getElementById("editor-tools-popup-button-toggleTextWrapping")) {
+            document.getElementById("editor-tools-popup-button-toggleTextWrapping").innerHTML = (toolFunctions.textWrapping ? "Disable" : "Enable") + " Text Wrapping";
+          }
+          if (toolFunctions.textWrapping) { // Enabled
+            document.getElementById("editor").wrap = "on";
+            document.getElementById("editor").style.width = "calc(100% - 50px)";
+            document.getElementById("line-count").style.display = "none";
+          } else { // Disabled
+            document.getElementById("editor").wrap = "off";
+            document.getElementById("editor").style.width = "calc(100% - 99px)";
+            document.getElementById("line-count").style.display = "block";
+          }
+        },
+        addDevMeasure: function() {
+          var temp = document.getElementById("editor").value;
+          if (document.getElementById("devMeasure") === null) {
+            document.body.innerHTML += "<div id='devMeasure' style='position: absolute; top: 100px; left: 10px; z-index: 1000; background-color: rgb(0, 0, 0); padding: 10px 0px 0px 0px;'><textarea style='background-color: rgb(0, 0, 0); width: 20px; height: 20px; overflow: hidden;'></textarea></div>";
+            $("#devMeasure").draggable();
+            document.getElementById("editor").value = temp;
+          }
+        },
+        convertToValue: function(a) {
+          var txtArr = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_".split("");
+          var b = 0;
+          a = a.split("");
+          for (var i = 0; i < a.length; i++) {
+            if (~txtArr.indexOf(a[i])) {
+              b += (txtArr.indexOf(a[i]) + 1) * Math.pow(64, a.length - 1 - i);
+            }
+          }
+          return b;
+        },
+        convertToCode: function(a) {
+          var txtArr = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_".split("");
+          var b = [];
+          var i = 0, bval;
+          while (a > 0) {
+            bval = Math.floor(a / Math.pow(64, 7 - i)); // * Math.pow(64, i);
+            b.push(txtArr[bval - 1]);
+            a -= bval * Math.pow(64, 7 - i);
+            i++;
+          }
+          return b.join("");
+        },
+        makePublic: function() {
+          // var txtArr = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
+          public.once("value", function(data) {
+            var d = data.val();
+            alert("r1: " + toolFunctions.convertToValue(d.on));
+            alert("r2: " + toolFunctions.convertToCode(toolFunctions.convertToValue(d.on)));
+          });
+        }
+      };
+      // alert("v7");
+      function openTools() {
+        document.getElementById("editor-tools-popup").style.display = "block";
+        // Tools Header:
+        document.getElementById("editor-tools-popup").innerHTML = "<div id='editor-tools-popup-header'>Tools<div id='editor-tools-popup-x' onclick='closeTools()'>X</div></div>";
+        // Tools Contents:
+        var c = getFile(path)[currentOpenedFile];
+        var tools = [
+          // --- Document Info ---
+          "<button class='editor-tools-popup-button' onclick='alert(\"Word Count: " + c.contents.split(" ").join("\n").split("\n").filter(v => {
+            var letters = ("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789").split("");
+            return v !== "" && v.split("").some(vs => {
+              return ~letters.indexOf(vs);
+            });
+          }).length + "\\nCharacter Count: " + c.contents.split("").length + "\")'>Document Info</button>",
+          // --- Text Wrapping ---
+          "<button class='editor-tools-popup-button' id='editor-tools-popup-button-toggleTextWrapping' onclick='toolFunctions.toggleTextWrapping()'>Enable Text Wrapping</button>",
+          // --- Dev Measure ---
+          "<button class='editor-tools-popup-button' onclick='toolFunctions.addDevMeasure()'>Dev Measure</button>",
+          // --- Publish Document ---
+          "<button class='editor-tools-popup-button' onclick='toolFunctions.makePublic()'>Publish Document</button>"
+        ];
+        // Add Tools
+        document.getElementById("editor-tools-popup").innerHTML += "<div id='editor-tools-popup-contents'>" + tools.join("") + "</div>";
+        // Text Wrapping
+        toolFunctions.updateTextWrapping();
+      }
+      function closeTools() {
+        document.getElementById("editor-tools-popup").style.display = "none";
+      }
+      var lines = [];
+      function updateLines(s) {
+        if (document.getElementById("editor").value.split("\n").length !== lines.length || s) {
+          if (document.getElementById("editor").value.split("\n").length + 1 > lines.length) {
+            lines = Array.from(Array(document.getElementById("editor").value.split("\n").length + 1).keys()).splice(1);
+          }
+          if (document.getElementById("editor").value.split("\n").length + 1 < lines.length) {
+            lines = lines.splice(0, document.getElementById("editor").value.split("\n").length);
+          }
+          document.getElementById("line-count").innerHTML = lines.join("<br>");
+          document.getElementById("editor").rows = lines.length;
+        }
+      }
+      function saveFile(i) {
+        getFile(path)[i].contents = document.getElementById("editor").value;
+        saveFiles();
+      }
+      function editPath(i) {
+        open = false;
+        var fileName = prompt("Enter a new name for the " + getFile(path)[i].type + ".", getFile(path)[i].name + (getFile(path)[i].type === "file" ? ("." + getFile(path)[i].extension) : "")).trim();
+        fileName = fileName.split(".");
+        var fileExtension = fileName.length > 1 ? fileName[fileName.length - 1] : "txt";
+        if (fileName.length > 1) {
+          fileName = fileName.splice(0, fileName.length - 1).join(".");
+        }
+        if (fileName[0] === "") {
+          fileName = "Untitled F" + getFile(path)[i].type.substring(1, getFile(path)[i].type.length);
+        }
+        getFile(path)[i].name = fileName;
+        if (getFile(path)[i].type === "file") {
+
+          getFile(path)[i].extension = fileExtension;
+        }
+        saveFiles();
+        loadFiles(path);
+      }
+      function deletePath(i) {
+        open = false;
+        var f = getFile(path)[i];
+        if (confirm("Are you sure you want to delete " + f.name + (f.extension ? ("." + f.extension) : "") + "?\n\nThis action cannot be undone.")) {
+          getFile(path).splice(i, 1);
+          saveFiles();
+          loadFiles(path);
+        }
+      }
+      function getAllFiles(p, z) {
+        for (var i = 0; i < getFile(p).length; i++) {
+          switch(getFile(p)[i].type) {
+            case "folder":
+              var n = z.folder(getFile(p)[i].name);
+              p.push(i);
+              getAllFiles(p, n);
+              p.pop();
+            break;
+            case "file":
+              z.file(getFile(p)[i].name + "." + getFile(p)[i].extension, getFile(p)[i].contents);
+            break;
+          }
+        }
+      }
+      function downloadProject() {
+        var zip = new JSZip();
+        if (path[0] !== undefined && files[path[0]].type === "folder") {
+          var z = zip.folder(files[path[0]].name);
+          getAllFiles([path[0]], z);
+          zip.generateAsync({ type: "blob" }).then(function(blob) {
+            saveAs(blob, files[path[0]].name + ".zip");
+          });
+        } else {
+          var file = new Blob([files[currentOpenedFile].contents], {type: files[currentOpenedFile].extension}); // Data / type
+          if (window.navigator.msSaveOrOpenBlob) { // IE10+
+            window.navigator.msSaveOrOpenBlob(file, filename);
+          } else { // Others
+            var a = document.createElement("a"),
+            url = URL.createObjectURL(file);
+            a.href = url;
+            a.download = files[currentOpenedFile].name + "." + files[currentOpenedFile].extension; // File name
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function() {
+              document.body.removeChild(a);
+              window.URL.revokeObjectURL(url);
+            }, 0);
+          }
+        }
+      }
+
+      // Add-ons:
+      function keyEvent(e, elem, keyC, replace, delOffset, cursOffset) {
+        if (!delOffset) {
+          delOffset = 0;
+        }
+        if (!cursOffset) {
+          cursOffset = 0;
+        }
+        if (e.keyCode === keyC || e.which === keyC || e.key === keyC) {
+          e.preventDefault();
+          var s = elem.selectionStart; // This gets changed after value does
+          elem.value = elem.value.substring(0, elem.selectionStart - delOffset) + replace + elem.value.substring(elem.selectionEnd);
+          elem.selectionEnd = s + replace.length - delOffset - cursOffset;
+        }
+      }
+      function moveCursor(e, elem, keyC, cursOffset) {
+        if (!cursOffset) {
+          cursOffset = 0;
+        }
+        if (e.keyCode === keyC || e.which === keyC || e.key === keyC) {
+          e.preventDefault();
+          var s = elem.selectionStart;
+          // get the text
+          var r = elem.value.substring(elem.selectionStart, elem.selectionEnd + cursOffset + 1);
+          // remove the text
+          elem.value = elem.value.substring(0, elem.selectionStart) + elem.value.substring(elem.selectionEnd + cursOffset);
+          // move the cursor
+          elem.selectionEnd = s + cursOffset;
+          // add the text back
+          elem.value = elem.value.substring(0, s) + r + elem.value.substring(elem.selectionEnd);
+          // move the cursor
+          elem.selectionEnd = s + cursOffset;
+        }
+      }
+      // HTML
+      function htmlAddOns(e, elem) {
+        if (elem.value.toLowerCase() === "html") {
+          elem.value = "<!DOCTYPE html>\n<html>\n\n</html>";
+        }
+        var currentIndent = "";
+        var prev = elem.value.substring(0, elem.selectionStart).split("");
+        var next = elem.value.substring(elem.selectionEnd).split("");
+        var lne = elem.value.substring(0, elem.selectionStart).split("\n");
+        lne = lne[lne.length - 1];
+        // Indenting:
+        var l = lne.split("");
+        for (var i = 0; i < l.length; i++) {
+          if (l[i] !== " ") {
+            break;
+          }
+          currentIndent += " ";
+        }
+        l = l.join("").trim().split("");
+        if (l[l.length - 1] === "{") { // Extra indent for opening brackets
+          currentIndent += "  ";
+        }
+        keyEvent(e, elem, 13, "\n" + currentIndent);
+        // Removing indents (for closing brackets)
+        if (lne.trim() === "") {
+          keyEvent(e, elem, 221, "}", 2);
+        }
+        // Tabbing
+        keyEvent(e, elem, 9, "  ");
+        // Un-tabbing
+        if (prev[prev.length - 1] === " " && prev[prev.length - 2] === " ") {
+          keyEvent(e, elem, 8, "", 2);
+        }
+        // "Bracketing"
+        // "Bracketing" - Doubling:
+        keyEvent(e, elem, "(", "()", 0, 1);
+        keyEvent(e, elem, "{", "{}", 0, 1);
+        keyEvent(e, elem, "[", "[]", 0, 1);
+        // "Bracketing" - Entering:
+        if (prev[prev.length - 1] === "{" && next[0] === "}") {
+          keyEvent(e, elem, 13, currentIndent + "\n" + currentIndent.substring(0, currentIndent.length - 2), currentIndent.length, currentIndent.length - 1); // + 1 to make up for the "\n", -2 to make up for the "  "
+        }
+        if (prev[prev.length - 1] === "(" && next[0] === ")" || prev[prev.length - 1] === "[" && next[0] === "]") {
+          keyEvent(e, elem, 13, currentIndent + "  \n" + currentIndent, currentIndent.length, currentIndent.length + 1); // + 1 to make up for the "\n"
+        }
+        // "Bracketing" - Skipping:
+        if (next[0] === ")") {
+          moveCursor(e, elem, ")", 1);
+        }
+        if (next[0] === "}") {
+          moveCursor(e, elem, "}", 1);
+        }
+        if (next[0] === "]") {
+          moveCursor(e, elem, "]", 1);
+        }
+        // "Bracketing" - Deleting:
+        if (prev[prev.length - 1] === "(" && next[0] === ")" || prev[prev.length - 1] === "{" && next[0] === "}" || prev[prev.length - 1] === "[" && next[0] === "]") {
+          moveCursor(e, elem, 8, 1);
+          keyEvent(e, elem, 8, "", 2);
+        }
+        // "Quoting"
+        // "Quoting" - Doubling
+        if (next[0] !== "\"") {
+          keyEvent(e, elem, "\"", "\"\"", 0, 1);
+        }
+        if (next[0] !== "'") {
+          keyEvent(e, elem, "'", "''", 0, 1);
+        }
+        // "Quoting" - Skipping
+        if (next[0] === "\"") {
+          moveCursor(e, elem, "\"", 1);
+        }
+        if (next[0] === "'") {
+          moveCursor(e, elem, "'", 1);
+        }
+        // "Quoting" - Deleting:
+        if (prev[prev.length - 1] === "\"" && next[0] === "\"" || prev[prev.length - 1] === "'" && next[0] === "'") {
+          moveCursor(e, elem, 8, 1);
+          keyEvent(e, elem, 8, "", 2);
+        }
+      }
+    </script>
+  </body>
+</html>
